@@ -10,7 +10,7 @@ import { TrendingUp, Building2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Signup = () => {
-  const { signUp, mockMode } = useAuth();
+  const { signUp } = useAuth();
   const navigate = useNavigate();
 
   const [role, setRole] = useState<UserRole>('investor');
@@ -110,11 +110,6 @@ const Signup = () => {
           {submitting ? 'Creating account…' : 'Open account'}
         </Button>
 
-        {mockMode && (
-          <p className="text-[11px] text-muted-foreground text-center">
-            Demo mode — accounts are stored in this browser session only.
-          </p>
-        )}
       </form>
     </AuthLayout>
   );

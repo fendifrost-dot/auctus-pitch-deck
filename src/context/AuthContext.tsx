@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export type UserRole = 'investor' | 'issuer' | 'admin';
 
@@ -16,102 +16,69 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (email: string, password: string, name: string, role: UserRole) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
-  /** True when running against placeholder Supabase config (mock mode). */
-  mockMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const MOCK_KEY = 'auctus_demo_session';
+async function hydrateFromProfile(
+  sessionUser: { id: string; email?: string | null; user_metadata?: Record<string, unknown> },
+): Promise<AuctusUser> {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, role')
+    .eq('id', sessionUser.id)
+    .maybeSingle();
 
-function readMock(): AuctusUser | null {
-  try {
-    const raw = sessionStorage.getItem(MOCK_KEY);
-    return raw ? (JSON.parse(raw) as AuctusUser) : null;
-  } catch {
-    return null;
-  }
-}
+  const meta = (sessionUser.user_metadata ?? {}) as { name?: string; role?: UserRole };
+  const email = profile?.email ?? sessionUser.email ?? '';
 
-function writeMock(user: AuctusUser | null) {
-  if (user) sessionStorage.setItem(MOCK_KEY, JSON.stringify(user));
-  else sessionStorage.removeItem(MOCK_KEY);
+  return {
+    id: sessionUser.id,
+    email,
+    name: profile?.full_name ?? meta.name ?? email.split('@')[0] ?? 'User',
+    role: (profile?.role as UserRole) ?? meta.role ?? 'investor',
+  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuctusUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const mockMode = !isSupabaseConfigured;
 
   useEffect(() => {
-    if (mockMode) {
-      setUser(readMock());
-      setLoading(false);
-      return;
-    }
-
-    // Real Supabase: subscribe FIRST, then fetch existing session.
+    // Subscribe FIRST, then fetch existing session.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        const meta = session.user.user_metadata as { name?: string; role?: UserRole };
-        setUser({
-          id: session.user.id,
-          email: session.user.email ?? '',
-          name: meta.name ?? session.user.email?.split('@')[0] ?? 'User',
-          role: meta.role ?? 'investor',
-        });
+        // Defer Supabase call to avoid deadlock inside the auth callback.
+        setTimeout(() => {
+          hydrateFromProfile(session.user).then(setUser);
+        }, 0);
       } else {
         setUser(null);
       }
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        const meta = session.user.user_metadata as { name?: string; role?: UserRole };
-        setUser({
-          id: session.user.id,
-          email: session.user.email ?? '',
-          name: meta.name ?? session.user.email?.split('@')[0] ?? 'User',
-          role: meta.role ?? 'investor',
-        });
+        const u = await hydrateFromProfile(session.user);
+        setUser(u);
       }
       setLoading(false);
     });
 
     return () => sub.subscription.unsubscribe();
-  }, [mockMode]);
+  }, []);
 
   const signIn = async (email: string, password: string) => {
-    if (mockMode) {
-      // Admin demo gate
-      if (email === 'admin@auctus.demo' && password === 'demo') {
-        const u: AuctusUser = { id: 'admin-1', email, name: 'Admin', role: 'admin' };
-        writeMock(u);
-        setUser(u);
-        return {};
-      }
-      if (!email || !password) return { error: 'Email and password are required.' };
-      const stored = readMock();
-      const u: AuctusUser =
-        stored && stored.email === email
-          ? stored
-          : { id: 'demo-' + email, email, name: email.split('@')[0], role: 'investor' };
-      writeMock(u);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    if (data.user) {
+      const u = await hydrateFromProfile(data.user);
       setUser(u);
-      return {};
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? { error: error.message } : {};
+    return {};
   };
 
   const signUp = async (email: string, password: string, name: string, role: UserRole) => {
-    if (mockMode) {
-      if (!email || !password || !name) return { error: 'All fields are required.' };
-      const u: AuctusUser = { id: 'demo-' + email, email, name, role };
-      writeMock(u);
-      setUser(u);
-      return {};
-    }
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -124,17 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    if (mockMode) {
-      writeMock(null);
-      setUser(null);
-      return;
-    }
     await supabase.auth.signOut();
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, mockMode }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
