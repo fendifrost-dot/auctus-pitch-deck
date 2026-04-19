@@ -1,6 +1,7 @@
 import { Link, useParams, Navigate } from 'react-router-dom';
 import { SiteShell } from '@/components/SiteShell';
-import { getOffering, formatCurrency } from '@/data/offerings';
+import { formatCurrency } from '@/data/offerings';
+import { useOffering } from '@/hooks/useOfferings';
 import { Button } from '@/components/ui/button';
 import {
   ArrowLeft,
@@ -16,7 +17,17 @@ import { cn } from '@/lib/utils';
 
 const InvestDetail = () => {
   const { id = '' } = useParams();
-  const o = getOffering(id);
+  const { data: o, isLoading } = useOffering(id);
+
+  if (isLoading) {
+    return (
+      <SiteShell showDemoBanner>
+        <section className="bg-navy text-cream py-20 text-center">
+          <p className="eyebrow text-cream/50">Loading offering…</p>
+        </section>
+      </SiteShell>
+    );
+  }
   if (!o) return <Navigate to="/invest" replace />;
 
   const pct = Math.round((o.raisedAmount / o.targetAmount) * 100);

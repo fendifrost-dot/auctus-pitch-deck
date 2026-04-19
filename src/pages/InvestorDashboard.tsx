@@ -1,5 +1,6 @@
 import { DashboardShell } from '@/components/DashboardShell';
-import { OFFERINGS, formatCurrency } from '@/data/offerings';
+import { formatCurrency } from '@/data/offerings';
+import { useOfferings } from '@/hooks/useOfferings';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { ArrowRight, FileText, Download } from 'lucide-react';
@@ -13,12 +14,6 @@ import {
   CartesianGrid,
 } from 'recharts';
 
-const positions = [
-  { offering: OFFERINGS[0], invested: 50_000, status: 'Closed', date: '2025-03-12' },
-  { offering: OFFERINGS[1], invested: 100_000, status: 'Closed', date: '2025-04-02' },
-  { offering: OFFERINGS[2], invested: 25_000, status: 'Pending', date: '2025-05-08' },
-];
-
 const chartData = [
   { month: 'Nov', value: 175_000 },
   { month: 'Dec', value: 178_400 },
@@ -30,6 +25,18 @@ const chartData = [
 ];
 
 const InvestorDashboard = () => {
+  const { data: offerings = [] } = useOfferings();
+  // Demo positions: first 3 published offerings + mock amounts (placeholder
+  // until we wire real investments table reads for the signed-in investor).
+  const positionTemplate: { invested: number; status: string; date: string }[] = [
+    { invested: 50_000, status: 'Closed', date: '2025-03-12' },
+    { invested: 100_000, status: 'Closed', date: '2025-04-02' },
+    { invested: 25_000, status: 'Pending', date: '2025-05-08' },
+  ];
+  const positions = offerings.slice(0, 3).map((offering, i) => ({
+    offering,
+    ...positionTemplate[i],
+  }));
   const totalInvested = positions.reduce((s, p) => s + p.invested, 0);
   const currentValue = chartData[chartData.length - 1].value;
   const returnPct = ((currentValue - totalInvested) / totalInvested) * 100;

@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SiteShell } from '@/components/SiteShell';
-import { OFFERINGS, SECTORS, formatCurrency, Sector } from '@/data/offerings';
+import { SECTORS, formatCurrency, Sector } from '@/data/offerings';
+import { useOfferings } from '@/hooks/useOfferings';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -17,9 +19,10 @@ const Invest = () => {
   const [sector, setSector] = useState<Sector | 'all'>('all');
   const [sort, setSort] = useState<'newest' | 'progress' | 'target'>('newest');
   const [query, setQuery] = useState('');
+  const { data: allOfferings = [], isLoading } = useOfferings();
 
   const offerings = useMemo(() => {
-    let list = [...OFFERINGS];
+    let list = [...allOfferings];
     if (sector !== 'all') list = list.filter((o) => o.sector === sector);
     if (query) {
       const q = query.toLowerCase();
@@ -33,7 +36,7 @@ const Invest = () => {
       list.sort((a, b) => b.targetAmount - a.targetAmount);
     }
     return list;
-  }, [sector, sort, query]);
+  }, [allOfferings, sector, sort, query]);
 
   return (
     <SiteShell showDemoBanner>
@@ -95,7 +98,22 @@ const Invest = () => {
       {/* Grid */}
       <section className="py-12">
         <div className="container grid md:grid-cols-2 gap-6">
-          {offerings.map((o) => {
+          {isLoading && Array.from({ length: 4 }).map((_, i) => (
+            <div key={`skel-${i}`} className="bg-white border border-border p-7">
+              <Skeleton className="h-4 w-24 mb-3" />
+              <Skeleton className="h-7 w-48 mb-4" />
+              <Skeleton className="h-4 w-full mb-2" />
+              <Skeleton className="h-4 w-3/4 mb-6" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ))}
+          {!isLoading && offerings.length === 0 && (
+            <div className="col-span-full text-center py-20 text-muted-foreground">
+              <p className="font-serif text-2xl text-navy mb-2">No offerings match your filters.</p>
+              <p className="text-sm">Clear the filters or check back soon — new deals are added weekly.</p>
+            </div>
+          )}
+          {!isLoading && offerings.map((o) => {
             const pct = Math.round((o.raisedAmount / o.targetAmount) * 100);
             const statusColor =
               o.status === 'Closing Soon' ? 'text-warning' : o.status === 'Funded' ? 'text-success' : 'text-gold';

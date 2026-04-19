@@ -1,5 +1,6 @@
 import { DashboardShell } from '@/components/DashboardShell';
-import { OFFERINGS, formatCurrency } from '@/data/offerings';
+import { formatCurrency } from '@/data/offerings';
+import { useAllOfferings } from '@/hooks/useOfferings';
 import { ArrowUpRight, Building2, Users, Briefcase, DollarSign } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -11,13 +12,14 @@ const ccgPipeline = [
 ];
 
 const Admin = () => {
-  const totalRaised = OFFERINGS.reduce((s, o) => s + o.raisedAmount, 0);
-  const totalInvestors = OFFERINGS.reduce((s, o) => s + o.investorCount, 0);
+  const { data: offerings = [] } = useAllOfferings();
+  const totalRaised = offerings.reduce((s, o) => s + o.raisedAmount, 0);
+  const totalInvestors = offerings.reduce((s, o) => s + o.investorCount, 0);
 
   const stats = [
-    { label: 'Active Issuers', value: OFFERINGS.length.toString(), icon: Building2 },
+    { label: 'Active Issuers', value: offerings.length.toString(), icon: Building2 },
     { label: 'Active Investors', value: totalInvestors.toString(), icon: Users },
-    { label: 'Live Offerings', value: OFFERINGS.filter((o) => o.status !== 'Funded').length.toString(), icon: Briefcase },
+    { label: 'Live Offerings', value: offerings.filter((o) => o.status !== 'Funded' && o.status !== 'Draft').length.toString(), icon: Briefcase },
     { label: 'Capital Raised', value: formatCurrency(totalRaised, { compact: true }), icon: DollarSign },
   ];
 
@@ -66,7 +68,7 @@ const Admin = () => {
               </tr>
             </thead>
             <tbody>
-              {OFFERINGS.map((o) => {
+              {offerings.map((o) => {
                 const pct = Math.round((o.raisedAmount / o.targetAmount) * 100);
                 return (
                   <tr key={o.id} className="border-t border-border">

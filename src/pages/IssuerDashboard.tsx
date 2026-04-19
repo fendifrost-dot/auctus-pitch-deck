@@ -1,11 +1,13 @@
 import { DashboardShell } from '@/components/DashboardShell';
-import { OFFERINGS, formatCurrency } from '@/data/offerings';
+import { formatCurrency } from '@/data/offerings';
+import { useMyPrimaryOffering } from '@/hooks/useOfferings';
 import { Button } from '@/components/ui/button';
 import { Check, Clock, FileText, Download, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const myOffering = OFFERINGS[0];
-
+// Placeholder activity/compliance — Prompt 5's follow-up will wire these to
+// real queries on public.investments + public.compliance_tasks for the
+// current issuer's offering.
 const investorActivity = [
   { name: 'David W.', amount: 100_000, date: '2 hours ago', status: 'Committed' },
   { name: 'Rachel O.', amount: 50_000, date: '8 hours ago', status: 'Funded' },
@@ -24,6 +26,34 @@ const compliance = [
 ];
 
 const IssuerDashboard = () => {
+  const { data: myOffering, isLoading } = useMyPrimaryOffering();
+
+  if (isLoading) {
+    return (
+      <DashboardShell title="Loading…" subtitle="Fetching your offering.">
+        <div />
+      </DashboardShell>
+    );
+  }
+
+  if (!myOffering) {
+    return (
+      <DashboardShell
+        title="Your application is under review"
+        subtitle="AUCTUS underwriting typically decides within 14 business days."
+      >
+        <div className="bg-white border border-border p-10 text-center">
+          <p className="eyebrow mb-3">Pending approval</p>
+          <h2 className="font-serif text-2xl text-navy mb-4">You don't have a live offering yet.</h2>
+          <p className="text-muted-foreground max-w-lg mx-auto leading-relaxed">
+            Once AUCTUS underwriting approves your raise, this dashboard will populate with real-time
+            subscription activity, compliance tracking, and document management.
+          </p>
+        </div>
+      </DashboardShell>
+    );
+  }
+
   const pct = Math.round((myOffering.raisedAmount / myOffering.targetAmount) * 100);
 
   return (

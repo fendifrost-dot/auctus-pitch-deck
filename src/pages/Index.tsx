@@ -11,10 +11,12 @@ import {
   Lock,
   CheckCircle2,
 } from 'lucide-react';
-import { OFFERINGS, formatCurrency } from '@/data/offerings';
+import { formatCurrency } from '@/data/offerings';
+import { useOfferings } from '@/hooks/useOfferings';
 
 const Index = () => {
-  const featured = OFFERINGS.slice(0, 3);
+  const { data: offerings = [] } = useOfferings();
+  const featured = offerings.slice(0, 3);
 
   return (
     <SiteShell>

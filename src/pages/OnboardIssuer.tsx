@@ -16,6 +16,15 @@ import { Check, Upload, FileText, Building2, Briefcase, FileCheck2 } from 'lucid
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { SECTORS } from '@/data/offerings';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
+
+const slugify = (s: string) =>
+  s.toLowerCase().trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 64) + '-' + Math.random().toString(36).slice(2, 6);
 
 const STEPS = [
   { key: 'company', label: 'Company', icon: Building2 },
@@ -28,7 +37,9 @@ type StepKey = typeof STEPS[number]['key'];
 
 const OnboardIssuer = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [stepIdx, setStepIdx] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
   const step: StepKey = STEPS[stepIdx].key;
 
   const [data, setData] = useState({
@@ -50,7 +61,64 @@ const OnboardIssuer = () => {
   const next = () => setStepIdx((i) => Math.min(i + 1, STEPS.length - 1));
   const prev = () => setStepIdx((i) => Math.max(i - 1, 0));
 
-  const submit = () => {
+  const submit = async () => {
+    if (!user) {
+      toast.error('Please sign in to submit an application.');
+      navigate('/login?redirect=/onboard/issuer');
+      return;
+    }
+    if (!data.companyName || !data.sector || !data.targetAmount) {
+      toast.error('Company name, sector, and target raise are required.');
+      return;
+    }
+    setSubmitting(true);
+
+    const slug = slugify(data.companyName);
+
+    const { data: issuerRow, error: issuerErr } = await supabase
+      .from('issuers')
+      .insert({
+        slug,
+        company_name: data.companyName,
+        legal_entity: data.legalEntity || null,
+        website: data.website || null,
+        location: data.location || null,
+        founded: data.founded ? parseInt(data.founded, 10) : null,
+        team_size: data.teamSize ? parseInt(data.teamSize, 10) : null,
+        sector: data.sector,
+        short_description: data.description.slice(0, 240),
+        long_description: data.description,
+        primary_contact_id: user.id,
+        application_status: 'submitted',
+        application_submitted_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+
+    if (issuerErr) {
+      setSubmitting(false);
+      toast.error(issuerErr.message);
+      return;
+    }
+
+    const { error: offeringErr } = await supabase.from('offerings').insert({
+      slug,
+      issuer_id: issuerRow.id,
+      target_amount: parseFloat(data.targetAmount),
+      min_investment: parseFloat(data.minInvestment || '25000'),
+      share_price: data.sharePrice ? parseFloat(data.sharePrice) : null,
+      status: 'pending_review',
+      regulation_type: '506c',
+      published: false,
+    });
+
+    setSubmitting(false);
+
+    if (offeringErr) {
+      toast.error(offeringErr.message);
+      return;
+    }
+
     toast.success('Application submitted to AUCTUS underwriting.');
     navigate('/dashboard/issuer');
   };
@@ -205,8 +273,8 @@ const OnboardIssuer = () => {
                 Back
               </Button>
               {stepIdx === STEPS.length - 1 ? (
-                <Button variant="primary" onClick={submit}>
-                  Submit application
+                <Button variant="primary" onClick={submit} disabled={submitting}>
+                  {submitting ? 'Submitting…' : 'Submit application'}
                 </Button>
               ) : (
                 <Button variant="primary" onClick={next}>

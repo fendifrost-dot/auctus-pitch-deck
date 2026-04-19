@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { SiteShell } from '@/components/SiteShell';
-import { getOffering, formatCurrency } from '@/data/offerings';
+import { formatCurrency } from '@/data/offerings';
+import { useOffering } from '@/hooks/useOfferings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +14,7 @@ type Step = 'amount' | 'review' | 'success';
 
 const InvestCheckout = () => {
   const { id = '' } = useParams();
-  const o = getOffering(id);
+  const { data: o, isLoading } = useOffering(id);
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('amount');
   const [amount, setAmount] = useState<string>('');
@@ -25,6 +26,7 @@ const InvestCheckout = () => {
     [],
   );
 
+  if (isLoading) return <SiteShell showDemoBanner><section className="py-20 text-center text-muted-foreground">Loading…</section></SiteShell>;
   if (!o) return <Navigate to="/invest" replace />;
 
   const numericAmount = Number(amount) || 0;
